@@ -305,7 +305,7 @@
         <div><span id="weekInfo"></span></div>
         <button type="button" class="btn btn-light" id="clearWeek">Clear week</button>
       </div>
-      <div class="send-box">
+      <div class="send-box" id="sendBox">
         <h3>Send my week to Fataghoul</h3>
         <p>When your week is done, send your total so it counts toward our goal.</p>
         <div class="send-row">
@@ -313,6 +313,7 @@
           <select id="wkGrade" aria-label="Grade"><option value="">Grade</option><option>Primary School</option><option>Middle School</option><option>High School</option></select>
           <button type="button" class="btn btn-green" id="sendWeek">Send my week →</button>
         </div>
+        <div class="h-captcha" data-captcha="true" style="margin-top:14px"></div>
         <div class="send-msg" id="sendMsg"></div>
       </div>
     </div>
@@ -384,6 +385,7 @@
         <label for="contact">Your email or a parent's email (optional)</label>
         <input id="contact" name="contact" type="email" placeholder="So we can reply to you">
       </div>
+      <div class="h-captcha" data-captcha="true" id="joinCaptcha" style="margin-bottom:14px"></div>
       <button class="btn btn-green" type="submit" style="width:100%">Send Interest →</button>
       <div class="success" id="successMessage">Thank you! Your message was sent to the Fataghoul team. We will be in touch soon. 💚</div>
     </form>
@@ -423,6 +425,8 @@
   // ====== PASTE YOUR WEB3FORMS ACCESS KEY HERE (from web3forms.com) ======
   const ACCESS_KEY = "7b35c808-841e-4f6d-b593-c3343aca9db6";
 
+  function captchaToken(box){ const t=box.querySelector('[name="h-captcha-response"]'); return t ? t.value : ""; }
+  function captchaReset(box){ try{ const f=box.querySelector("iframe"); if(window.hcaptcha&&f) hcaptcha.reset(f.getAttribute("data-hcaptcha-widget-id")); }catch(e){} }
   const openedAt = Date.now();
   form.addEventListener("submit", async e => {
     e.preventDefault();
@@ -437,6 +441,12 @@
     const contact = document.getElementById("contact").value.trim();
     if(ACCESS_KEY.startsWith("PASTE_")){
       success.textContent = "Setup not finished: the Web3Forms access key has not been added to the page yet.";
+      success.style.cssText = "display:block;background:#fdecec;color:#a02a2a";
+      return;
+    }
+    const joinTok = captchaToken(document.getElementById("joinCaptcha"));
+    if(!joinTok){
+      success.textContent = "Please tick the \"I am human\" box first.";
       success.style.cssText = "display:block;background:#fdecec;color:#a02a2a";
       return;
     }
@@ -456,7 +466,8 @@
           "Grade": grade,
           "Wants to help with": how,
           "Contact email": contact || "(not given)",
-          botcheck: document.getElementById("botcheck").checked
+          botcheck: document.getElementById("botcheck").checked,
+          "h-captcha-response": joinTok
         })
       });
       const data = await res.json();
@@ -467,6 +478,7 @@
     }catch(err){
       success.textContent = "Sorry, it didn't send (" + (err.message || "network error") + "). Please try again, or tell your teacher or Fataghoul coordinator directly.";
       success.style.cssText = "display:block;background:#fdecec;color:#a02a2a";
+      captchaReset(document.getElementById("joinCaptcha"));
       btn.disabled = false;
       btn.textContent = "Send Interest →";
     }
@@ -536,6 +548,8 @@
       if(!name||!grade){ say("Please enter your first name and grade first.",false); return; }
       const total=state.days.reduce((a,b)=>a+b,0);
       if(total===0){ say("Add some bottles to your week before sending.",false); return; }
+      const sendBox=document.getElementById("sendBox"), tok=captchaToken(sendBox);
+      if(!tok){ say("Please tick the \"I am human\" box first.",false); return; }
       try{ localStorage.setItem("fataghoulWho", JSON.stringify({name,grade})); }catch(e){}
       const btn=document.getElementById("sendWeek"); btn.disabled=true; btn.textContent="Sending...";
       const breakdown=names.map((n,i)=>n+": "+state.days[i]).join(", ");
@@ -549,7 +563,8 @@
             from_name:"Fataghoul weekly tracker",
             message: name+" ("+grade+") recycled "+total+" bottles in the week starting "+state.week+".",
             "First name":name, "Grade":grade, "Total bottles":total,
-            "Week starting":state.week, "Day by day":breakdown
+            "Week starting":state.week, "Day by day":breakdown,
+            "h-captcha-response": tok
           })
         });
         const data=await res.json();
@@ -558,6 +573,7 @@
       }catch(err){
         say("Sorry, it didn't send ("+(err.message||"network error")+"). Please try again.",false);
       }
+      captchaReset(sendBox);
       btn.disabled=false; btn.textContent="Send my week →";
     });
     sync(); render();
@@ -566,5 +582,6 @@
     document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && sync()) render(); });
   })();
 </script>
+<script src="https://web3forms.com/client/script.js" async defer></script>
 </body>
 </html>
